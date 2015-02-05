@@ -1,10 +1,10 @@
 package io.cristiano.signature.validator;
 
 import org.apache.commons.io.IOUtils;
-import org.bouncycastle.asn1.ASN1Set;
-import org.bouncycastle.asn1.DEREncodable;
+import org.bouncycastle.asn1.ASN1Sequence;
 import org.bouncycastle.asn1.cms.Attribute;
 import org.bouncycastle.asn1.cms.AttributeTable;
+import org.bouncycastle.asn1.ess.SigningCertificateV2;
 import org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers;
 import org.bouncycastle.asn1.util.ASN1Dump;
 import org.bouncycastle.cms.CMSSignedData;
@@ -12,6 +12,7 @@ import org.bouncycastle.cms.SignerInformation;
 import org.bouncycastle.cms.SignerInformationStore;
 import org.bouncycastle.tsp.TimeStampToken;
 import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.Test;
 
 import java.io.InputStream;
@@ -34,11 +35,6 @@ public class SignatureTestCase {
 
             //1.2.840.113549.1.9.16.2.21
             //1.2.840.113549.1.9.16.2.22
-
-            LOGGER.info("###### Signer: " +
-                    ASN1Dump.dumpAsString(signerInfo.getSignedAttributes()
-                            .get(PKCSObjectIdentifiers.id_aa_signingCertificateV2)));
-
             AttributeTable attributeTable = signerInfo.getUnsignedAttributes();
 
             Attribute certificateRefs = attributeTable.get(PKCSObjectIdentifiers.id_aa_ets_certificateRefs);
@@ -57,7 +53,7 @@ public class SignatureTestCase {
     }
 
     @Test
-    public void shouldSignatureADRT() throws Exception{
+    public void shouldSignatureADRT() throws Exception {
         InputStream signedData = getClass().getResourceAsStream("/pkcs7/ADRT.p7s");
         CMSSignedData cmsSignedData = new CMSSignedData(IOUtils.toByteArray(signedData));
 
@@ -66,10 +62,6 @@ public class SignatureTestCase {
         for (Object obj : signerInformationStore.getSigners()) {
 
             SignerInformation signerInfo = (SignerInformation) obj;
-
-            LOGGER.info("###### Signer: " +
-                    ASN1Dump.dumpAsString(signerInfo.getSignedAttributes()
-                            .get(PKCSObjectIdentifiers.id_aa_signingCertificateV2)));
 
             AttributeTable attributeTable = signerInfo.getUnsignedAttributes();
 
@@ -88,5 +80,32 @@ public class SignatureTestCase {
             LOGGER.info("AlgOID: " + timeStampToken.getTimeStampInfo().getMessageImprintAlgOID());
         }
     }
+
+
+    @Test
+    public void shouldSignerCertificateIsSignerOnly() throws Exception {
+        InputStream signedData = getClass().getResourceAsStream("/pkcs7/ADRT.p7s");
+        CMSSignedData cmsSignedData = new CMSSignedData(IOUtils.toByteArray(signedData));
+
+        SignerInformationStore signerInformationStore = cmsSignedData.getSignerInfos();
+
+        for (Object obj : signerInformationStore.getSigners()) {
+
+            SignerInformation signerInfo = (SignerInformation) obj;
+
+            AttributeTable attributeTable = signerInfo.getSignedAttributes();
+
+            Attribute signerCertificate = attributeTable
+                    .get(PKCSObjectIdentifiers.id_aa_signingCertificateV2);
+
+            SigningCertificateV2 signingCertificateV2 = new SigningCertificateV2((ASN1Sequence) signerCertificate.getAttrValues().getObjectAt(0).getDERObject());
+
+            Assume.assumeNotNull(signingCertificateV2);
+            //signerOnly
+            Assert.assertEquals(signingCertificateV2.getCerts().length,1);
+        }
+    }
+
+
 }
 
